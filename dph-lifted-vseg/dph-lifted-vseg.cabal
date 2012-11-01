@@ -49,6 +49,7 @@ Library
         Data.Array.Parallel.Prelude.Base
         Data.Array.Parallel.Prelude.Bool
         Data.Array.Parallel.Prelude.Double
+        Data.Array.Parallel.Prelude.MultiDouble
         Data.Array.Parallel.Prelude.Int
         Data.Array.Parallel.Prelude.Word8
         Data.Array.Parallel.Prelude.Tuple
