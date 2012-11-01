@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS -fno-warn-name-shadowing -fno-warn-unused-matches -fno-warn-incomplete-patterns #-}
 #include "fusion-phases.h"
 
@@ -26,14 +27,23 @@ module Data.Array.Parallel.Unlifted.Stream.Segmented
         , fold1SS
         , foldValuesR
         , appendSS
-        , indicesSS)
+        , indicesSS
+#if defined(__GLASGOW_HASKELL_LLVM__)
+        , mfoldSS
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+        )
 where
 import Data.Array.Parallel.Base                    (Tag)
 import qualified Data.Vector.Fusion.Bundle         as B
 import qualified Data.Vector.Fusion.Bundle.Monadic as M
+import Data.Vector.Fusion.Bundle                   as S
 import Data.Vector.Fusion.Bundle.Monadic           (Bundle(..))
 import Data.Vector.Fusion.Stream.Monadic           (Stream(..), Step(..))
 import Data.Vector.Fusion.Bundle.Size              (Size(..))
+#if defined(__GLASGOW_HASKELL_LLVM__)
+import Data.Primitive.Multi
+import Data.Vector.Fusion.MultiStream.Monadic      (MultiStream(..))
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 
 -- Indexed --------------------------------------------------------------------
@@ -364,6 +374,55 @@ foldSS f z (Bundle{sElems=Stream nexts ss,sSize=sz}) (Bundle{sElems=Stream nextv
           Yield y vs' -> let r = f x y
                          in r `seq` return (Skip (Just (n-1), r, ss, vs'))
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mfoldSS  :: forall a b v . MultiPrim b
+         => (a -> b -> a)        -- ^ function to perform the fold for scalars
+         -> (a -> Multi b -> a)  -- ^ function to perform the fold for @Multi a@'s
+         -> a                    -- ^ initial element of each fold
+         -> S.Bundle v Int       -- ^ stream of segment lengths
+         -> S.Bundle v b         -- ^ stream of input data
+         -> S.Bundle v a         -- ^ stream of fold results
+        
+{-# INLINE_STREAM mfoldSS #-}
+mfoldSS p q z (Bundle{sElems=Stream nexts ss,sSize=sz})
+              (Bundle{sMultis=Left (MultiStream _ stepm step1 ms)})
+    = m `seq` M.fromStream (Stream next (Nothing,z,ss,ms)) sz
+  where
+    m = multiplicity (undefined :: Multi b)
+
+    {-# INLINE next #-}
+    next (Nothing,x,ss,ms) =
+      do
+        r <- nexts ss
+        case r of
+          Done        -> return Done
+          Skip    ss' -> return $ Skip (Nothing,x, ss', ms)
+          Yield n ss' -> return $ Skip (Just n, z, ss', ms)
+
+    next (Just 0,x,ss,ms) =
+      return $ Yield x (Nothing,z,ss,ms)
+
+    next (Just n,x,ss,ms) | n >= m =
+      do
+        r <- stepm ms
+        case r of
+          Done        -> return Done -- NEVER ENTERED (See Note)
+          Skip    ms' -> return $ Skip (Just n,x,ss,ms')
+          Yield y ms' -> let r = q x y
+                         in r `seq` return (Skip (Just (n-m), r, ss, ms'))
+
+    next (Just n,x,ss,ms) =
+      do
+        r <- step1 ms
+        case r of
+          Done        -> return Done -- NEVER ENTERED (See Note)
+          Skip    ms' -> return $ Skip (Just n,x,ss,ms')
+          Yield y ms' -> let r = p x y
+                         in r `seq` return (Skip (Just (n-1), r, ss, ms'))
+
+mfoldSS p _ z segs vs =
+    foldSS p z segs vs
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 -- | Like `foldSS`, but use the first member of each chunk as the initial
 --   element for the fold.

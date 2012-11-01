@@ -3,6 +3,10 @@ import qualified GHC.Base
 import Prelude                  ((.), ($), Num(..), Eq(..), seq, snd)
 import qualified Prelude
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+import Data.Vector.Generic ( PackedVector )
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+
 instance Elt Int
 instance Elt Word8
 instance Elt Bool
@@ -662,6 +666,31 @@ fold1_vs f vsegd arrs
 
  #-}
 
+#if defined(MULTI)
+mmap :: (Elt a, Elt b,
+         PackedVector Vector a, PackedVector Vector b)
+     => (a -> b)
+     -> (Multi a -> Multi b)
+     -> Array a
+     -> Array b
+{-# INLINE_BACKEND mmap #-}
+
+mzipWith :: (Elt a, PackedVector Vector a)
+         => (a -> a -> a)
+         -> (Multi a -> Multi a -> Multi a)
+         -> Array a
+         -> Array a
+         -> Array a
+{-# INLINE_BACKEND mzipWith #-}
+
+mfold :: (Elt a, PackedVector Vector a)
+      => (a -> a -> a)
+      -> (Multi a -> Multi a -> Multi a)
+      -> a
+      -> Array a
+      -> a
+{-# INLINE_BACKEND mfold #-}
+#endif
 
 -- Sums -------------------------------
 -- | Same as @fold (+) 0@

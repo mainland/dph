@@ -104,6 +104,11 @@ sum                             = U.sum
 sum_r                           = sumRU
 and                             = U.and
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mmap                            = U.mmap
+mzipWith                        = U.mzipWith
+mfold                           = U.mfold
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 -- Packing and Filter ---------------------------------------------------------
 pack                            = U.pack

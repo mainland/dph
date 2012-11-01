@@ -113,6 +113,9 @@ sum                             = notImplemented "sum"
 sum_r                           = notImplemented "sum_r"
 and                             = notImplemented "and"
 
+mmap                            = notImplemented "mmap"
+mzipWith                        = notImplemented "mzipWith"
+mfold                           = notImplemented "mfold"
 
 -- Packing and Combining ------------------------------------------------------
 pack                            = notImplemented "pack"

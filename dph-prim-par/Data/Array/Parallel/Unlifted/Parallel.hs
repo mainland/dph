@@ -67,7 +67,12 @@ module Data.Array.Parallel.Unlifted.Parallel
         , allUP,     anyUP
         , sumUP,     productUP
         , maximumUP, maximumByUP
-        , maximumIndexByUP)
+        , maximumIndexByUP
+
+#if defined(__GLASGOW_HASKELL_LLVM__)
+        , mmapUP, mzipWithUP, mfoldUP
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+        )
 where
 import Data.Array.Parallel.Unlifted.Parallel.Basics
 import Data.Array.Parallel.Unlifted.Parallel.Combinators

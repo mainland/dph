@@ -63,6 +63,10 @@ module Data.Array.Parallel.Unlifted (
   count, count_s, count_ss,
   and, 
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+  mmap, mzipWith, mfold,
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+
   -- * Pack and Filter
   pack,
   packByTag,
@@ -168,4 +172,7 @@ import System.IO                  (IO, Handle)
 import Data.Word                  (Word8)
 import qualified System.Random
 import qualified Prelude
+#if defined(__GLASGOW_HASKELL_LLVM__)
+import Data.Primitive.Multi       (Multi)
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 import qualified Data.Vector       as VV

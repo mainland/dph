@@ -36,7 +36,12 @@ module Data.Array.Parallel.PArray.Scalar
         , fold1Index,   fold1sIndex
         
         -- * Enumerations
-        , enumFromTo, enumFromTol)
+        , enumFromTo, enumFromTol
+
+#if defined(__GLASGOW_HASKELL_LLVM__)
+        , mmap, mzipWith, mfold
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+        )
 where
 import Data.Array.Parallel.PArray.PData.Void
 import Data.Array.Parallel.PArray.PData.Word8
@@ -48,6 +53,11 @@ import Data.Word
 import GHC.Exts
 import qualified Data.Array.Parallel.Unlifted           as U
 import Prelude hiding ( map, zipWith, zipWith3, enumFromTo)
+#if defined(__GLASGOW_HASKELL_LLVM__)
+import Data.Primitive.Multi (Multi)
+import qualified Data.Vector.Generic                    as G
+import qualified Data.Vector.Unboxed                    as UV
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 
 -- | Class of Scalar data that can be converted to and from single unboxed
@@ -332,6 +342,38 @@ fold1sIndex f (PArray n# pdata)
          $ U.fold1_s f segd
          $ U.zip (U.indices_s segd)
          $ fromScalarPData xs
+
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mmap :: (Scalar a, Scalar b,
+         G.PackedVector UV.Vector a, G.PackedVector UV.Vector b)
+     => (a -> b)
+     -> (Multi a -> Multi b)
+     -> PArray a
+     -> PArray b
+{-# INLINE_PA mmap #-}
+mmap p q (PArray len xs) =
+    PArray len $ to $ U.mmap p q (from xs)
+
+mzipWith :: (Scalar a, G.PackedVector UV.Vector a)
+         => (a -> a -> a)
+         -> (Multi a -> Multi a -> Multi a)
+         -> PArray a
+         -> PArray a
+         -> PArray a
+{-# INLINE_PA mzipWith #-}
+mzipWith p q (PArray len xs) (PArray _ ys) =
+    PArray len $ to $ U.mzipWith p q (from xs) (from ys)
+
+mfold    :: (Scalar a, G.PackedVector UV.Vector a)
+         => (a -> a -> a)
+         -> (Multi a -> Multi a -> Multi a)
+         -> a
+         -> PArray a
+         -> a
+{-# INLINE_PA mfold #-}
+mfold p q !z (PArray _ pdata)
+        = U.mfold p q z $ from pdata
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 {- [Note: fold/promoteSegd]
    ~~~~~~~~~~~~~~~~~~~~~~~~

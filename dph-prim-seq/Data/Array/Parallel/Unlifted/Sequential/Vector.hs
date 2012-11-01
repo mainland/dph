@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, BangPatterns, CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS  -w #-}     -- TODO: enable warnings
 #include "fusion-phases.h"
 
@@ -92,9 +93,14 @@ module Data.Array.Parallel.Unlifted.Sequential.Vector (
   mdrop, mslice,
 
   -- * I\/O
-  UIO(..)
+  UIO(..),
+
+#if defined(__GLASGOW_HASKELL_LLVM__)
+  mmap, mzipWith, mfoldl, mfold
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 ) 
 where
+import Data.Primitive.Multi
 import Data.Array.Parallel.Unlifted.Stream.Segmented
 import Data.Array.Parallel.Base ( Tag, checkEq, ST )
 import qualified Data.Array.Parallel.Base          as B
@@ -112,9 +118,15 @@ import Data.Vector.Fusion.Stream.Monadic           ( Stream(..), Step(..) )
 import Data.Vector.Fusion.Bundle.Size              ( Size(..) )
 import Data.Vector.Generic                         ( stream, unstream )
 
-import Data.Vector.Unboxed 
+import Data.Vector.Unboxed
+#if defined(__GLASGOW_HASKELL_LLVM__)
+        hiding ( slice, zip, unzip, zip3, unzip3, foldl, foldl1, scanl, scanl1,
+                 mfoldl, mfold, mfold',
+                 unsafeSlice )
+#else /* !defined(__GLASGOW_HASKELL_LLVM__) */
         hiding ( slice, zip, unzip, zip3, unzip3, foldl, foldl1, scanl, scanl1,
                  unsafeSlice )
+#endif /* !defined(__GLASGOW_HASKELL_LLVM__) */
 
 import Prelude 
         hiding ( length, null,
@@ -662,3 +674,22 @@ instance MG.MVector MVector Integer
 instance G.Vector Vector Integer
 
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mfoldl :: (Unbox a, G.PackedVector Vector a)
+       => (a -> a -> a)
+       -> (Multi a -> Multi a -> Multi a)
+       -> a
+       -> Vector a
+       -> a
+{-# INLINE_U mfoldl #-}
+mfoldl = V.mfold'
+
+mfold :: (Unbox a, G.PackedVector Vector a)
+      => (a -> a -> a)
+      -> (Multi a -> Multi a -> Multi a)
+      -> a
+      -> Vector a
+      -> a
+{-# INLINE_U mfold #-}
+mfold = mfoldl
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */

@@ -209,6 +209,19 @@ sum_r x arr
 and arr =  tracePrim (TraceAnd (Seq.length arr))
         $! andUP arr
 
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mmap p q arr
+        =  tracePrim (TraceMap (Seq.length arr))
+        $! mmapUP p q arr
+
+mzipWith p q arr1 arr2
+        =  tracePrim (TraceZipWith (Seq.length arr1) (Seq.length arr2))
+        $! mzipWithUP p q arr1 arr2
+
+mfold p q x arr
+        =  tracePrim (TraceFold (Seq.length arr))
+        $! mfoldUP p q x arr
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 -- Pack and Filter ------------------------------------------------------------
 pack arrSrc arrFlag

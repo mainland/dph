@@ -9,13 +9,21 @@ module Data.Array.Parallel.Unlifted.Parallel.Combinators
         , combineUP, combine2UP
         , zipWithUP
         , foldUP, foldlUP, fold1UP, foldl1UP
-        , scanUP)
+        , scanUP
+#if defined(__GLASGOW_HASKELL_LLVM__)
+        , mmapUP, mzipWithUP, mfoldUP
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
+        )
 where
+#if defined(__GLASGOW_HASKELL_LLVM__)
+import Data.Primitive.Multi
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 import Data.Array.Parallel.Base
 import Data.Array.Parallel.Unlifted.Distributed
 import Data.Array.Parallel.Unlifted.Distributed.What
 import Data.Array.Parallel.Unlifted.Parallel.UPSel
 import Data.Array.Parallel.Unlifted.Sequential.Vector as Seq
+import qualified Data.Vector.Generic as G
 
 here :: String -> String
 here s = "Data.Array.Parallel.Unlifted.Parallel.Combinators." Prelude.++ s
@@ -162,6 +170,58 @@ foldl1UP f arr
                 combine' Nothing  (Just y) = Just y
                 combine' Nothing  Nothing  = Nothing
 {-# INLINE_UP foldl1UP #-}
+
+
+#if defined(__GLASGOW_HASKELL_LLVM__)
+mmapUP  :: (Unbox a, Unbox b, G.PackedVector Vector a, G.PackedVector Vector b)
+        => (a -> b)
+        -> (Multi a -> Multi b)
+        -> Vector a
+        -> Vector b
+mmapUP p q xs
+        = splitJoinD theGang
+              (mapD (What "mmapUP/mmap") theGang (Seq.mmap p q)) xs
+{-# INLINE_UP mmapUP #-}
+
+mzipWithUP :: (Unbox a, G.PackedVector Vector a) 
+           => (a -> a -> a)
+           -> (Multi a -> Multi a -> Multi a)
+           -> Vector a
+           -> Vector a
+           -> Vector a
+mzipWithUP p q xs ys
+        = splitJoinD theGang 
+                (mapD (What "mzipWithUP/mmap") theGang
+                     (Seq.mmap (uncurry p) (muncurry q)))
+                --(mapD theGang (Seq.map (uncurry p))) 
+                (Seq.zip xs ys)
+{-# INLINE_UP mzipWithUP #-}
+
+-- | Undirected SIMD fold.
+--   Note that this function has more constraints on its parameters than the
+--   standard fold function from the Haskell Prelude.
+--
+--   * The worker function must be associative.
+--
+--   * The provided starting element must be neutral with respect to the worker.
+--     For example 0 is neutral wrt (+) and 1 is neutral wrt (*).
+--
+--   We need these constraints so that we can partition the fold across 
+--   several threads. Each thread folds a chunk of the input vector, 
+--   then we fold together all the results in the main thread.
+--
+mfoldUP  :: (Unbox a, DT a, G.PackedVector Vector a)
+         => (a -> a -> a)
+         -> (Multi a -> Multi a -> Multi a)
+         -> a
+         -> Vector a
+         -> a
+mfoldUP p q !z xs
+        = foldD (What "mfoldUP/p")     theGang p
+        $ mapD  (What "mfoldUP/mfold") theGang (Seq.mfold p q z)
+        $ splitD theGang unbalanced xs
+{-# INLINE_UP mfoldUP #-}
+#endif /* defined(__GLASGOW_HASKELL_LLVM__) */
 
 
 -- | Prefix scan. Similar to fold, but produce an array of the intermediate states.
